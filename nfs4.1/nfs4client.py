@@ -11,6 +11,8 @@ import time, struct
 import threading
 import collections
 import hmac
+import inspect
+import os
 from locking import Lock
 from nfs4commoncode import CBCompoundState as CompoundState, \
      cb_encode_status as encode_status, \
@@ -86,6 +88,9 @@ class NFS4Client(rpc.Client, rpc.Server):
         return self.send_call(pipe, 1, p.get_buffer(), credinfo)
 
     def compound(self, *args, **kwargs):
+        current_stack = inspect.stack();
+        test_name = '%s:%s' % (os.path.basename(current_stack[2][1]), current_stack[2][3])
+        self.tag = test_name
         xid = self.compound_async(*args, **kwargs)
         pipe = kwargs.get("pipe", None)
         res = self.listen(xid, pipe=pipe)
