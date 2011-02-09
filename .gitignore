@@ -15,3 +15,4 @@ parsetab.py
 
 # setup.py files
 build/
+/nbproject/private/
