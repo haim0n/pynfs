@@ -12,7 +12,7 @@ import threading
 import collections
 import hmac
 import inspect
-import os
+from os.path import basename
 from locking import Lock
 from nfs4commoncode import CBCompoundState as CompoundState, \
      cb_encode_status as encode_status, \
@@ -88,9 +88,7 @@ class NFS4Client(rpc.Client, rpc.Server):
         return self.send_call(pipe, 1, p.get_buffer(), credinfo)
 
     def compound(self, *args, **kwargs):
-        current_stack = inspect.stack();
-        test_name = '%s:%s' % (os.path.basename(current_stack[2][1]), current_stack[2][3])
-        self.tag = test_name
+        self.tag = self.create_tag()
         xid = self.compound_async(*args, **kwargs)
         pipe = kwargs.get("pipe", None)
         res = self.listen(xid, pipe=pipe)
@@ -299,6 +297,14 @@ class NFS4Client(rpc.Client, rpc.Server):
         s = c.create_session()
         s.compound([op.reclaim_complete(FALSE)])
         return s
+
+    def create_tag(self):
+        current_stack = inspect.stack()
+        stackid = 0
+        while basename(current_stack[stackid][1]) == 'environment.py' or basename(current_stack[stackid][1]) == 'nfs4client.py':
+              stackid = stackid + 1
+        test_name = '%s:%s' % (basename(current_stack[stackid][1]), current_stack[stackid][3])
+        return test_name
 
 class ClientStateProtection(object):
     def __init__(self, p_res, p_arg):
