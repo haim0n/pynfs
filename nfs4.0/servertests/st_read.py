@@ -1,5 +1,5 @@
 from nfs4_const import *
-from environment import check, checklist, makeBadID, makeStaleId
+from environment import check, checklist, makeBadID, makeBadIDganesha, makeStaleId
 
 def _compare(t, res, expect, eof=True):
     def shorten(str):
@@ -66,7 +66,7 @@ def testWithOpen(t, env):
 def testLargeCount(t, env):
     """READ a large dataset
 
-    FLAGS: read all
+    FLAGS:
     DEPEND: MKFILE
     CODE: RD4
     """
@@ -178,17 +178,20 @@ def testNoFh(t, env):
     res = c.read_file(None)
     check(res, NFS4ERR_NOFILEHANDLE, "READ with no <cfh>")
 
-def testBadStateid(t, env):
+# RD9 requires a server specific manipulation of the stateid
+#     each server will have it's own implementation, there is
+#     no general version.
+def testBadStateidGanesha(t, env):
     """READ with bad stateid should return NFS4ERR_BAD_STATEID
 
-    FLAGS: read badid all
+    FLAGS: ganesha
     DEPEND: MKFILE
-    CODE: RD9
+    CODE: RD9g
     """
     c = env.c1
     c.init_connection()
     fh, stateid = c.create_confirm(t.code)
-    res = c.read_file(fh, stateid=makeBadID(stateid))
+    res = c.read_file(fh, stateid=makeBadIDganesha(stateid))
     check(res, NFS4ERR_BAD_STATEID, "READ with bad stateid")
 
 def testStaleStateid(t, env):
@@ -219,17 +222,3 @@ def testOldStateid(t, env):
     fh, stateid = c.confirm(t.code, res)
     res = c.read_file(fh, stateid=oldstateid)
     check(res, NFS4ERR_OLD_STATEID, "READ with old stateid")
-
-def testOpenMode(t, env):
-    """READ with file opened in WRITE mode should return NFS4_OK or NFS4ERR_OPENMODE
-
-    FLAGS: read all
-    DEPEND: MKFILE
-    CODE: RD12
-    """
-    c = env.c1
-    c.init_connection()
-    fh, stateid = c.create_confirm(t.code, access=OPEN4_SHARE_ACCESS_WRITE)
-    res = c.read_file(fh, stateid=stateid)
-    check(res, NFS4ERR_OPENMODE, "READ with file opened in WRITE mode",
-          [NFS4_OK])

@@ -191,7 +191,6 @@ class CBServer(rpc.RPCServer):
             raise "Bad name %s" % name
 
     def run(self):
-        print "Starting Call Back server stub on port %i" % self.port
         rpc.RPCServer.run(self)
 
     def handle_0(self, data, cred):
@@ -294,7 +293,6 @@ class NFS4Client(rpc.RPCClient, nfs4_ops.NFS4Operations):
         self.cb_control = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         while 1:
             try:
-                time.sleep(1)
                 self.cb_control.connect(('127.0.0.1', self.cb_server.port))
                 break
             except socket.error:
@@ -324,6 +322,9 @@ class NFS4Client(rpc.RPCClient, nfs4_ops.NFS4Operations):
         # Make the actual call
         compoundargs = COMPOUND4args(argarray=argarray, tag=tag,
                                      minorversion=minorversion)
+        if SHOW_TRAFFIC:
+            print
+            print compoundargs
         p = self.nfs4packer
         un_p = self.nfs4unpacker
         p.reset()
@@ -331,6 +332,8 @@ class NFS4Client(rpc.RPCClient, nfs4_ops.NFS4Operations):
         res = self.call(NFSPROC4_COMPOUND, p.get_buffer())
         un_p.reset(res)
         res = un_p.unpack_COMPOUND4res()
+        if SHOW_TRAFFIC:
+            print res
         un_p.done()
 
         # Do some error checking
@@ -468,6 +471,9 @@ class NFS4Client(rpc.RPCClient, nfs4_ops.NFS4Operations):
 
     def lookup_path(self, dir):
         return [self.lookup_op(comp) for comp in dir]
+
+    def lookupp_path(self, dir):
+    	return [self.lookupp_op() for comp in dir]
 
     def go_home(self):
         """Return LOOKUP ops to get to homedir"""

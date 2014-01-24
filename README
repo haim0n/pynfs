@@ -5,7 +5,6 @@ passes we expect to merge the two code bases.
 
 You can prepare both for use with
 	./setup.py build
-	./setup.py build_ext --inplace
 which will create auto-generated files and compile any shared libraries
 in place.
 
@@ -18,3 +17,5 @@ statements about the protocol--if you find that a server fails a test,
 you should consult the rfc's and think carefully before assuming that
 the server is at fault.  (However, we do appreciate patches if you find
 a test that requires incorrect behavior.)
+
+See COPYING for copyright and license information.

@@ -1,5 +1,5 @@
 from nfs4_const import *
-from environment import check
+from environment import check, checklist
 import os
 import struct, time
 
@@ -31,9 +31,8 @@ def testClientReboot(t, env):
     # This should clean out client state, invalidating stateid
     c.init_connection(verifier='')
     res = c.close_file(t.code, fh, stateid)
-    check(res, NFS4ERR_OLD_STATEID,
-          "Trying to use old stateid after SETCLIENTID_CONFIRM purges state",
-          [NFS4ERR_BAD_STATEID])
+    check(res, NFS4ERR_EXPIRED,
+          "Trying to use old stateid after SETCLIENTID_CONFIRM purges state")
     
 def testClientUpdateCallback(t, env):
     """SETCLIENTID - make sure updating callback info does not invalidate state
@@ -151,5 +150,5 @@ def testNoConfirm(t, env):
     ops = c.use_obj(c.homedir)
     ops += [c.open(t.code, t.code, OPEN4_CREATE)]
     res = c.compound(ops)
-    check(res, NFS4ERR_STALE_CLIENTID,
+    checklist(res, [NFS4ERR_STALE_CLIENTID, NFS4ERR_EXPIRED],
           "OPEN using clientid that was never confirmed")

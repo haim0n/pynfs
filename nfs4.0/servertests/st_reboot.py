@@ -76,7 +76,7 @@ def testManyClaims(t, env):
             c.init_connection(badid)
             res = c.open_file(t.code, badfh, claim_type=CLAIM_PREVIOUS,
                               deleg_type=OPEN_DELEGATE_NONE)
-            checklist(res, [NFS4ERR_RECLAIM_CONFLICT, NFS4ERR_RECLAIM_BAD],
+            checklist(res, [NFS4ERR_NO_GRACE, NFS4ERR_RECLAIM_BAD],
                       "Reclaim with bad clientid %s" % badid)
     finally:
         env.sleep(sleeptime, "Waiting for grace period to end")
@@ -93,37 +93,16 @@ def testRebootWait(t, env):
     fh, stateid = c.create_confirm(t.code)
     sleeptime = _waitForReboot(c, env)
     try:
+        env.sleep(sleeptime/2, "Waiting till halfway through grace period")
         res = c.open_file(t.code, fh, claim_type=CLAIM_PREVIOUS,
                        deleg_type=OPEN_DELEGATE_NONE)
         check(res, NFS4ERR_STALE_CLIENTID, "Reclaim using old clientid")
         c.init_connection()
     finally:
-        env.sleep(sleeptime, "Waiting for grace period to end")
+        env.sleep(sleeptime/2 + 1, "Waiting for grace period to end")
     res = c.open_file(t.code, fh, claim_type=CLAIM_PREVIOUS,
                       deleg_type=OPEN_DELEGATE_NONE)
     check(res, NFS4ERR_NO_GRACE, "Reclaim after grace period has expired")
-
-def testRebootInvalid(t, env):
-    """REBOOT with invalid CLAIM_PREVIOUS
-
-    FLAGS: reboot
-    DEPEND: MKFILE
-    CODE: REBT4
-    """
-    c = env.c1
-    c.init_connection()
-    fh, stateid = c.create_confirm(t.code, access=OPEN4_SHARE_ACCESS_READ)
-    sleeptime = _waitForReboot(c, env)
-    try:
-        c.init_connection()
-        res = c.open_file(t.code, fh, access=OPEN4_SHARE_ACCESS_WRITE,
-                          claim_type=CLAIM_PREVIOUS,
-                          deleg_type=OPEN_DELEGATE_NONE)
-        check(res, NFS4ERR_RECLAIM_CONFLICT,
-              "Reclaim with write access, when only had read access",
-              [NFS4ERR_RECLAIM_BAD])
-    finally:
-        env.sleep(sleeptime, "Waiting for grace period to end")
 
 def testEdge1(t, env):
     """REBOOT with first edge condition from RFC 3530
@@ -165,9 +144,8 @@ def testEdge1(t, env):
         c1.init_connection()
         res1 = c1.open_file(t.code, fh1, claim_type=CLAIM_PREVIOUS,
                             deleg_type=OPEN_DELEGATE_NONE)
-        check(res1, NFS4ERR_RECLAIM_CONFLICT,
-              "Reclaim lock that has been interfered with",
-              [NFS4ERR_RECLAIM_BAD])
+        checklist(res1, [NFS4ERR_NO_GRACE, NFS4ERR_RECLAIM_BAD],
+              "Reclaim lock that has been interfered with")
     finally:
         env.sleep(sleeptime, "Waiting for grace period to end")
 
@@ -212,16 +190,15 @@ def testEdge2(t, env):
         c1.init_connection()
         res1 = c1.open_file(t.code, fh1, claim_type=CLAIM_PREVIOUS,
                             deleg_type=OPEN_DELEGATE_NONE)
-        check(res1, NFS4ERR_RECLAIM_CONFLICT,
-              "Reclaim lock that has been interfered with",
-              [NFS4ERR_RECLAIM_BAD])
+        checklist(res1, [NFS4ERR_NO_GRACE, NFS4ERR_RECLAIM_BAD],
+              "Reclaim lock that has been interfered with")
     finally:
         env.sleep(sleeptime, "Waiting for grace period to end")
 
 def testRootSquash(t, env):
     """REBOOT root squash does not work after grace ends?
 
-    FLAGS: reboot
+    FLAGS:
     DEPEND: MKFILE MKDIR
     CODE: REBT7
     """
@@ -328,10 +305,11 @@ def testGraceSeqid(t, env):
         check(res, msg="Reclaim using newly created clientid")
         res = c.open_file(t.code)
         check(res, NFS4ERR_GRACE, "First OPEN during grace period")
+        env.sleep(sleeptime/2, "Waiting till halfway through grace period")
         res = c.open_file(t.code)
         check(res, NFS4ERR_GRACE, "Second OPEN during grace period")
     finally:
-        env.sleep(sleeptime, "Waiting for grace period to end")
+        env.sleep(sleeptime/2 + 1, "Waiting for grace period to end")
     res = c.open_file(t.code)
     check(res, NFS4_OK, "OPEN after grace period")
      

@@ -1,7 +1,7 @@
 from nfs4_const import *
 import nfs4_ops as op
 import time
-from environment import check, fail
+from environment import check, checklist, fail
 from nfs4_type import *
 from rpc import RPCAcceptError, GARBAGE_ARGS, RPCTimeout
 from nfs4lib import NFS4Error, hash_oids, encrypt_oids
@@ -9,6 +9,15 @@ from nfs4lib import NFS4Error, hash_oids, encrypt_oids
 def _getleasetime(sess):
     res = sess.compound([op.putrootfh(), op.getattr(1 << FATTR4_LEASE_TIME)])
     return res.resarray[-1].obj_attributes[FATTR4_LEASE_TIME]
+
+def _raw_exchange_id(c, name, verf=None, cred=None, protect=None, flags=0):
+    if verf is None:
+        verf = c.verifier
+    owner = client_owner4(verf, name)
+    if protect is None:
+        protect = state_protect4_a(SP4_NONE)
+    return c.compound([op.exchange_id(owner, flags, protect,
+                                            [c.impl_id])], cred)
 
 def testSupported(t, env):
     """Do a simple EXCHANGE_ID - no flags
@@ -77,11 +86,9 @@ def testSSV(t, env):
     protect = state_protect4_a(SP4_SSV, spa_ssv_parms=ssv_parms)
     c = env.c1.new_client(env.testname(t), protect=protect)
 
-    # CREATE_SESSION
     sess = c.create_session() # Can we use ssv cred for cb_sec here?
     # This should fail if not using GSS?  What about E_ID?
 
-    # SET_SSV
     res = sess.set_ssv('\x5a' * c.protect.context.ssv_len)
     print res
     
@@ -204,6 +211,8 @@ def testNoUpdate100(t, env):
     """
     c1 = env.c1.new_client(env.testname(t), cred=env.cred1)
     sess1 = c1.create_session()
+    res = c1.c.compound([op.destroy_session(sess1.sessionid)])
+    check(res)
     # confirmed==True, verf != old_verf, princ != old_princ, no state
     # This is an example of case 3 from draft 21
     c2 = env.c1.new_client(env.testname(t), cred=env.cred2,
@@ -211,8 +220,8 @@ def testNoUpdate100(t, env):
     if c2.clientid == c1.clientid:
         fail("Record replacement should create new clientid")
     # Check that cred1 state is destroyed
-    res = sess1.compound([])
-    check(res, NFS4ERR_BADSESSION)
+    res = c1._create_session()
+    check(res, NFS4ERR_STALE_CLIENTID)
 
 # Need similar tests of 100 for expired lease, existing state (IN_USE)
 
@@ -232,11 +241,37 @@ def testNoUpdate101(t, env):
     if c1.clientid == c2.clientid:
         fail("Expected clientid %i to change" % c1.clientid)
 
-    # Old session state should have been discarded
-    # BUG - first have to confirm new state
+    # Old session state should not be discarded until confirm:
+    res = sess1.compound([])
+    check(res)
+
+    # Old session state should be discarded after confirm:
+    sess2 = c2.create_session()
+    check(res)
     res = sess1.compound([])
     check(res, NFS4ERR_BADSESSION)
-    # FIXME - more checks here
+
+def testNoUpdate101b(t, env):
+    """
+    
+    FLAGS: exchange_id all
+    CODE: EID5fb
+    """
+    c1 = env.c1.new_client(env.testname(t))
+    sess1 = c1.create_session()
+
+    # confirmed==True, verf != old_verf, princ == old_princ
+    # This is case 5 from draft 21
+    c2 = env.c1.new_client(env.testname(t), verf=env.new_verifier())
+
+    if c1.clientid == c2.clientid:
+        fail("Expected clientid %i to change" % c1.clientid)
+
+    sess2 = c2.create_session()
+
+    # Old session state should be discarded:
+    res = sess1.compound([])
+    check(res, NFS4ERR_BADSESSION)
 
 def testNoUpdate110(t, env):
     """
@@ -246,6 +281,8 @@ def testNoUpdate110(t, env):
     """
     c1 = env.c1.new_client(env.testname(t), cred=env.cred1)
     sess1 = c1.create_session()
+    res = c1.c.compound([op.destroy_session(sess1.sessionid)])
+    check(res)
     # confirmed==True, verf == old_verf, princ != old_princ
     # This is an example of case 3 from draft 21
     c2 = env.c1.new_client(env.testname(t), cred=env.cred2)
@@ -353,10 +390,10 @@ def testUpdate100(t, env):
     sess1 = c1.create_session()
     # confirmed==True, verf != old_verf, princ != old_princ
     # This is an example of case 8 from draft-21
-    c2 = env.c1.new_client(env.testname(t), verf=env.new_verifier(),
+    res = _raw_exchange_id(env.c1, env.testname(t), verf=env.new_verifier(),
                            cred=env.cred2,
-                           flags=EXCHGID4_FLAG_UPD_CONFIRMED_REC_A,
-                           expect=NFS4ERR_NOT_SAME)
+                           flags=EXCHGID4_FLAG_UPD_CONFIRMED_REC_A)
+    checklist(res, [NFS4ERR_NOT_SAME, NFS4ERR_PERM])
     
 def testUpdate101(t, env):
     """
@@ -459,16 +496,17 @@ def testLeasePeriod(t, env):
 
     # CREATE_SESSION
     chan_attrs = channel_attrs4(0,8192,8192,8192,128,8,[])
+    sec = [callback_sec_parms4(0)]
     time.sleep(min(lease - 10, 1))
     # Inside lease period, create_session will success.
     res1 = c1.c.compound([op.create_session(c1.clientid, c1.seqid, 0,
                                         chan_attrs, chan_attrs,
-                                        123, [])], None)
+                                        123, sec)], None)
     check(res1)
 
     time.sleep(lease + 10)
     # After lease period, create_session will get error NFS4ERR_STALE_CLIENTID
     res2 = c2.c.compound([op.create_session(c2.clientid, c2.seqid, 0,
                                         chan_attrs, chan_attrs,
-                                        123, [])], None)
+                                        123, sec)], None)
     check(res2, NFS4ERR_STALE_CLIENTID)

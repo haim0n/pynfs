@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # nfs4stest.py - nfsv4 server tester
 #
-# Requires python 2.3
+# Requires python 2.5
 # 
 # Written by Fred Isaman <iisaman@citi.umich.edu>
 # Copyright (C) 2004 University of Michigan, Center for 
@@ -26,8 +26,8 @@
 
 
 import sys
-if sys.hexversion < 0x02030000:
-    print "Requires python 2.3 or higher"
+if sys.hexversion < 0x02050000:
+    print "Requires python 2.5 or higher"
     sys.exit(1)
 import os
 # Allow to be run stright from package root
@@ -36,6 +36,7 @@ if  __name__ == "__main__":
         sys.path.insert(1, os.path.join(sys.path[0], 'lib'))
 
 import re
+import nfs4lib
 import testmod
 from optparse import OptionParser, OptionGroup, IndentedHelpFormatter
 import servertests.environment as environment
@@ -43,16 +44,16 @@ import socket
 import rpc
 import cPickle as pickle
 
-VERSION="0.2"
+VERSION="0.2" # How/when update this?
 
 # Auth_sys defaults
 HOST = socket.gethostname()
 if not hasattr(os, "getuid"):
-    UID = 0
+    UID = 4321
 else:
     UID = os.getuid()
 if not hasattr(os, "getgid"):
-    GID = 0
+    GID = 42
 else:
     GID = os.getgid()
 
@@ -89,60 +90,28 @@ def unixpath2comps(str, pathcomps=None):
 
 def scan_options(p):
     """Parse command line options
-
-    Sets the following:
-    .showflags = (False)
-    .showcodes = (False)
-    .noinit    = (False)
-    .nocleanup = (False)
-    .outfile   = (None)
-    .debug_fail = (False)
-    
-    .security = (sys)
-    .uid = (UID)
-    .gid = (GID)
-    .machinename = (HOST)
-
-    .force   = (False)
-    .rundeps = (False)
-    
-    .verbose  = (False)
-    .showpass = (True)
-    .showwarn = (True)
-    .showfail = (True)
-    .showomit = (False)
-
-    .maketree  = (False)
-    .uselink   = (None)
-    .useblock  = (None)
-    .usechar   = (None)
-    .usesocket = (None)
-    .usefifo   = (None)
-    .usefile   = (None)
-    .usedir    = (None)
-    .usespecial= (None)
-
-    .serverhelper = (None)
-    .serverhelperarg = (None)
-
     """
     p.add_option("--showflags", action="store_true", default=False,
                  help="Print a list of all possible flags and exit")
     p.add_option("--showcodes", action="store_true", default=False,
                  help="Print a list of all test codes and exit")
+    p.add_option("--showcodesflags", action="store_true", default=False,
+                 help="Print a list of all test codes with their flags and exit")
     p.add_option("--noinit", action="store_true", default=False,
                  help="Skip initial cleanup of test directory")
     p.add_option("--nocleanup", action="store_true", default=False,
                  help="Skip final cleanup of test directory")
-    p.add_option("--outfile", "--out", default="out_last", metavar="FILE",
-                 help="Store test results in FILE [out_last]")
+    p.add_option("--outfile", "--out", default=None, metavar="FILE",
+                 help="Store test results in FILE [%default]")
+    p.add_option("--xmlout", "--xml", default=None, metavar="FILE",
+                 help="Store test results in xml format [%default]")
     p.add_option("--debug_fail", action="store_true", default=False,
                  help="Force some checks to fail")
 
     g = OptionGroup(p, "Security flavor options",
                     "These options choose or affect the security flavor used.")
     g.add_option("--security", default='sys',
-                 help="Choose security flavor such as krb5i [sys]")
+                 help="Choose security flavor such as krb5i [%default]")
     g.add_option("--uid", default=UID, type='int',
                  help="uid for auth_sys [%i]" % UID)
     g.add_option("--gid", default=GID, type='int',
@@ -150,7 +119,7 @@ def scan_options(p):
     g.add_option("--machinename", default=HOST, metavar="HOST",
                  help="Machine name to use for auth_sys [%s]" % HOST)
     p.add_option_group(g)
-    
+
     g = OptionGroup(p, "Test selection options",
                     "These options affect how flags are interpreted.")
     g.add_option("--force", action="store_true", default=False,
@@ -161,7 +130,7 @@ def scan_options(p):
     p.add_option_group(g)
     
     g = OptionGroup(p, "Test output options",
-                    "These options affect how test results are shown")
+                    "These options affect how test results are shown.")
     g.add_option("-v", "--verbose", action="store_true", default=False,
                   help="Show tests as they are being run")
     g.add_option("--showpass", action="store_true", default=True,
@@ -180,13 +149,17 @@ def scan_options(p):
                  help="Show omitted tests")
     g.add_option("--hideomit", action="store_false", dest="showomit",
                  help="Hide omitted tests [default]")
+    g.add_option("--showtraffic", action="store_true", default=False,
+                 help="Show NFS packet information")
+    g.add_option("--hidetraffic", action="store_false", dest="showtraffic",
+                 help="Hide NFS packet information [default]")
     p.add_option_group(g)
 
     g = OptionGroup(p, "Test tree options",
                     "If the tester cannot create various objects, certain "
                     "tests will not run.  You can indicate pre-existing "
                     "objects on the server which can be used "
-                    "(they will not altered).")
+                    "(they will not be altered).")
     g.add_option("--maketree", action="store_true", default=False,
                  help="(Re)create the test tree of object types")
     g.add_option("--uselink", default=None, metavar="OBJPATH",
@@ -241,7 +214,7 @@ class Argtype(object):
     def __init__(self, obj, run=True, flag=True):
         self.isflag = flag  # True if flag, False if a test
         self.run = run      # True for inclusion, False for exclusion
-        self.obj = obj      # The flag or test itself
+        self.obj = obj      # The flag mask or test itself
 
     def __str__(self):
         return "Isflag=%i, run=%i" % (self.isflag, self.run)
@@ -283,6 +256,7 @@ def main():
                      formatter=IndentedHelpFormatter(2, 25)
                      )
     opt, args = scan_options(p)
+    nfs4lib.SHOW_TRAFFIC = opt.showtraffic
 
     # Create test database
     tests, fdict, cdict = testmod.createtests('servertests')
@@ -297,6 +271,13 @@ def main():
         codes.sort()
         for c in codes:
             print c
+        sys.exit(0)
+
+    if opt.showcodesflags:
+        codes = cdict.keys()
+        codes.sort()
+        for c in codes:
+            print c, "FLAGS:", ', '.join(cdict[c].flags_list)
         sys.exit(0)
 
     # Grab server info and set defaults
@@ -378,11 +359,13 @@ def main():
     except socket.gaierror, e:
         if e.args[0] == -2:
             print "Unknown server '%s'" % opt.server
+        print sys.exc_info()[1]
         sys.exit(1)
     except Exception, e:
         print "Initialization failed, no tests run."
         if not opt.maketree:
             print "Perhaps you need to use the --maketree option"
+        raise
         print sys.exc_info()[1]
         sys.exit(1)
     if opt.outfile is not None:
@@ -404,6 +387,9 @@ def main():
     testmod.printresults(tests, opt)
     if fail:
         print "\nWARNING: could not clean testdir due to:\n%s\n" % str(e)
+
+    if opt.xmlout is not None:
+        testmod.xml_printresults(tests, opt.xmlout)
 
 if __name__ == "__main__":
     main()

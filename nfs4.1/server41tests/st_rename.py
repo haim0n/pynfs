@@ -185,7 +185,7 @@ def testCfhFile(t, env):
     """
     name = env.testname(t)
     sess = env.c1.new_client_session(name)
-    res = create_obj(sess, [name])
+    res = create_obj(sess, env.c1.homedir + [name])
     check(res)
     res = rename_obj(sess, env.c1.homedir + [name], env.opts.usefile + [name])
     check(res, NFS4ERR_NOTDIR, "RENAME with non-dir <cfh>")
@@ -198,10 +198,11 @@ def testCfhLink(t, env):
     """
     name = env.testname(t)
     sess = env.c1.new_client_session(name)
-    res = create_obj(sess, [name])
+    res = create_obj(sess, env.c1.homedir + [name])
     check(res)
     res = rename_obj(sess, env.c1.homedir + [name], env.opts.uselink + [name])
-    check(res, NFS4ERR_NOTDIR, "RENAME with non-dir <cfh>")
+    checklist(res, [NFS4ERR_NOTDIR, NFS4ERR_SYMLINK],
+                                "RENAME with non-dir <cfh>")
 
 def testCfhBlock(t, env):
     """RENAME with non-dir (cfh) should return NFS4ERR_NOTDIR
@@ -211,7 +212,7 @@ def testCfhBlock(t, env):
     """
     name = env.testname(t)
     sess = env.c1.new_client_session(name)
-    res = create_obj(sess, [name])
+    res = create_obj(sess, env.c1.homedir + [name])
     check(res)
     res = rename_obj(sess, env.c1.homedir + [name], env.opts.useblock + [name])
     check(res, NFS4ERR_NOTDIR, "RENAME with non-dir <cfh>")
@@ -224,7 +225,7 @@ def testCfhChar(t, env):
     """
     name = env.testname(t)
     sess = env.c1.new_client_session(name)
-    res = create_obj(sess, [name])
+    res = create_obj(sess, env.c1.homedir + [name])
     check(res)
     res = rename_obj(sess, env.c1.homedir + [name], env.opts.usechar + [name])
     check(res, NFS4ERR_NOTDIR, "RENAME with non-dir <cfh>")
@@ -237,7 +238,7 @@ def testCfhFifo(t, env):
     """
     name = env.testname(t)
     sess = env.c1.new_client_session(name)
-    res = create_obj(sess, [name])
+    res = create_obj(sess, env.c1.homedir + [name])
     check(res)
     res = rename_obj(sess, env.c1.homedir + [name], env.opts.usefifo + [name])
     check(res, NFS4ERR_NOTDIR, "RENAME with non-dir <cfh>")
@@ -250,7 +251,7 @@ def testCfhSocket(t, env):
     """
     name = env.testname(t)
     sess = env.c1.new_client_session(name)
-    res = create_obj(sess, [name])
+    res = create_obj(sess, env.c1.homedir + [name])
     check(res)
     res = rename_obj(sess, env.c1.homedir + [name], env.opts.usesocket + [name])
     check(res, NFS4ERR_NOTDIR, "RENAME with non-dir <cfh>")
@@ -314,7 +315,7 @@ def testZeroLengthNewname(t, env):
 def testBadutf8Oldname(t, env):
     """RENAME with non-UTF8 oldname should return NFS4ERR_INVAL
 
-    FLAGS: rename utf8 all
+    FLAGS: rename utf8
     CODE: RNM8
     """
     name = env.testname(t)
@@ -330,7 +331,7 @@ def testBadutf8Oldname(t, env):
 def testBadutf8Newname(t, env):
     """RENAME with non-UTF8 newname should return NFS4ERR_INVAL
 
-    FLAGS: rename utf8 all
+    FLAGS: rename utf8
     CODE: RNM9
     """
     name = env.testname(t)
@@ -377,7 +378,7 @@ def testDotsNewname(t, env):
           [NFS4_OK])
 
 def testDirToObj(t, env):
-    """RENAME dir into existing nondir should return NFS4ERR_EXIST
+    """RENAME dir into existing nondir should fail
 
     FLAGS: rename all
     CODE: RNM12
@@ -387,7 +388,8 @@ def testDirToObj(t, env):
     basedir = env.c1.homedir + [name]
     maketree(sess, [name, ['dir'], 'file'])
     res = rename_obj(sess, basedir + ['dir'], basedir + ['file'])
-    check(res, NFS4ERR_EXIST, "RENAME dir into existing file")
+    # note rfc 3530 and 1813 specify EXIST, but posix specifies NOTDIR
+    checklist(res, [NFS4ERR_EXIST, NFS4ERR_NOTDIR], "RENAME dir into existing file")
 
 def testDirToDir(t, env):
     """RENAME dir into existing, empty dir should retrun NFS4_OK
@@ -403,7 +405,7 @@ def testDirToDir(t, env):
     check(res, msg="RENAME dir1 into existing, empty dir2")
 
 def testFileToDir(t, env):
-    """RENAME file into existing dir should return NFS4ERR_EXIST
+    """RENAME file into existing dir should fail
 
     FLAGS: rename all
     CODE: RNM14
@@ -413,7 +415,8 @@ def testFileToDir(t, env):
     basedir = env.c1.homedir + [name]
     maketree(sess, [name, ['dir'], 'file'])
     res = rename_obj(sess, basedir + ['file'], basedir + ['dir'])
-    check(res, NFS4ERR_EXIST, "RENAME file into existing dir")
+    # note rfc 3530 and 1813 specify EXIST, but posix specifies ISDIR
+    checklist(res, [NFS4ERR_EXIST, NFS4ERR_ISDIR], "RENAME file into existing dir")
 
 def testFileToFile(t, env):
     """RENAME file into existing file should return NFS4_OK
@@ -439,10 +442,10 @@ def testDirToFullDir(t, env):
     basedir = env.c1.homedir + [name]
     maketree(sess, [name, ['dir1'], ['dir2', ['foo']]])
     res = rename_obj(sess, basedir + ['dir1'], basedir + ['dir2'])
-    check(res, NFS4ERR_EXIST, "RENAME dir1 into existing, nonempty dir2")
+    checklist(res, [NFS4ERR_EXIST, NFS4ERR_NOTEMPTY], "RENAME dir1 into existing, nonempty dir2")
 
 def testFileToFullDir(t, env):
-    """RENAME file into existing, nonempty dir should return NFS4ERR_EXIST
+    """RENAME file into existing, nonempty dir should fail
 
     FLAGS: rename all
     CODE: RNM17
@@ -452,7 +455,9 @@ def testFileToFullDir(t, env):
     basedir = env.c1.homedir + [name]
     maketree(sess, [name, 'file', ['dir', ['foo']]])
     res = rename_obj(sess, basedir + ['file'], basedir + ['dir'])
-    check(res, NFS4ERR_EXIST, "RENAME file into existing, nonempty dir")
+    # note rfc 3530 and 1813 specify EXIST, but posix specifies ISDIR
+    checklist(res, [NFS4ERR_EXIST, NFS4ERR_ISDIR], "RENAME file into existing, nonempty dir")
+
 
 def testSelfRenameDir(t, env):
     """RENAME that does nothing

@@ -514,7 +514,7 @@ class ConnectionHandler(object):
                         data = self.sockets[fd].recv_records(self.rsize)
                     except socket.error:
                         data = None
-                    if data:
+                    if data is not None:
                         self._event_read(data, fd)
                     else:
                         self._event_close(fd)
@@ -635,6 +635,7 @@ class ConnectionHandler(object):
         call_info.header_size = msg.length
         call_info.payload_size = len(msg_data)
         call_info.connection = pipe
+        call_info.raw_cred = msg.body.cred
         notify = None
         try:
             # Check for reasons to DENY the call

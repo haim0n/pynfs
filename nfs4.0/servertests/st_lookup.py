@@ -1,5 +1,6 @@
 from nfs4_const import *
 from environment import check, checklist, get_invalid_utf8strings
+import rpc
 
 def testDir(t, env):
     """LOOKUP testtree dir
@@ -199,7 +200,7 @@ def testFifoNotDir(t, env):
 def testNonAccessable(t, env):
     """LOOKUP with non-accessable components should return NFS4ERR_ACCESS
 
-    FLAGS: lookup all
+    FLAGS: lookup all mode000
     DEPEND: MKDIR
     CODE: LOOK6
     """
@@ -216,12 +217,15 @@ def testNonAccessable(t, env):
     res = c.compound(c.use_obj(dir))
     check(res)
     res = c.compound(c.use_obj(dir + ['foo']))
-    check(res, NFS4ERR_ACCESS, "LOOKUP object in a dir with mode=000")
+    if env.opts.uid == 0:
+	    checklist(res, [NFS4_OK, NFS4ERR_ACCESS], "LOOKUP object in a dir with mode=000")
+    else:
+	    check(res, NFS4ERR_ACCESS, "LOOKUP object in a dir with mode=000")
 
 def testInvalidUtf8(t, env):
     """LOOKUP with bad UTF-8 name strings should return NFS4ERR_INVAL
 
-    FLAGS: lookup utf8 all
+    FLAGS: lookup utf8
     DEPEND:
     CODE: LOOK7
     """
@@ -265,7 +269,7 @@ def testDots(t, env):
 def testUnaccessibleDir(t, env):
     """LOOKUP with (cfh) in unaccessible directory 
 
-    FLAGS: lookup all
+    FLAGS: lookup all mode000
     DEPEND: MKDIR MODE
     CODE: LOOK9
     """
@@ -276,7 +280,10 @@ def testUnaccessibleDir(t, env):
     res = c.compound(ops)
     check(res, msg="Setting mode=0 on directory %s" % t.code)
     res = c.compound(c.use_obj(path + ['hidden']))
-    check(res, NFS4ERR_ACCESS, "LOOKUP off of dir with mode=0")
+    if env.opts.uid == 0:
+	    checklist(res, [NFS4_OK, NFS4ERR_ACCESS], "LOOKUP off of dir with mode=000")
+    else:
+	    check(res, NFS4ERR_ACCESS, "LOOKUP off of dir with mode=000")
 
 def testBadOpaque(t, env):
     """LOOKUP with a path component that has an incorrect array length
@@ -301,7 +308,14 @@ def testBadOpaque(t, env):
         orig = p.pack_opaque
         p.pack_opaque = bad_opaque
         res = c.compound([c.putrootfh_op(), c.lookup_op("setlength=0xcccccccc")])
+        e = "operation erroneously suceeding"
         check(res, NFS4ERR_BADXDR)
+    except rpc.RPCAcceptError, e:
+        if e.stat == rpc.GARBAGE_ARGS:
+            # This is correct response
+            return
+        t.fail("Using bad opque should return GARBAGE_ARGS, "
+               "or NFS4ERR_BADXDR instead got %s" % e)
     finally:
         p.pack_opaque = orig
     

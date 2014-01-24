@@ -353,7 +353,7 @@ class FSObject(object):
         NOTE permissions checking on the range has already been done
         """
         fs = self.fs
-        if not fs.fattr4_supported_attrs & (1 << FATTR4_FS_LAYOUT_TYPE):
+        if not fs.fattr4_supported_attrs & (1 << FATTR4_FS_LAYOUT_TYPES):
             raise NFS4Error(NFS4ERR_LAYOUTUNAVAILABLE)
         try:
             types = fs.fattr4_fs_layout_type
@@ -376,7 +376,7 @@ class FSObject(object):
         if arg.loca_reclaim:
             # STUB - this is just not supported
             raise NFS4Error(NFS4ERR_NO_GRACE)
-        if not fs.fattr4_supported_attrs & (1 << FATTR4_FS_LAYOUT_TYPE):
+        if not fs.fattr4_supported_attrs & (1 << FATTR4_FS_LAYOUT_TYPES):
             raise NFS4Error(NFS4ERR_LAYOUTUNAVAILABLE)
         if not self.current_layout:
             raise NFS4Error(NFS4ERR_BADLAYOUT, tag="File has no layout")
@@ -664,6 +664,10 @@ class RootFS(FileSystem):
     def __init__(self):
         self._nextid = 0
         FileSystem.__init__(self)
+        self.fattr4_maxwrite = 4096
+        self.fattr4_maxread = 4096
+        self.fattr4_supported_attrs |= 1 << FATTR4_MAXWRITE
+        self.fattr4_supported_attrs |= 1 << FATTR4_MAXREAD
         self.fsid = (0,0)
         self.read_only = True
 
@@ -1276,7 +1280,7 @@ class BlockLayoutFS(FileSystem):
         FileSystem.__init__(self, objclass=LayoutFSObj)
         self.fsid = (3, fsid)
         self.fattr4_fs_layout_type = [LAYOUT4_BLOCK_VOLUME]
-        self.fattr4_supported_attrs |= 1 << FATTR4_FS_LAYOUT_TYPE
+        self.fattr4_supported_attrs |= 1 << FATTR4_FS_LAYOUT_TYPES
         self.fattr4_layout_blksize = 4096
         self.fattr4_supported_attrs |= 1 << FATTR4_LAYOUT_BLKSIZE
         self.fattr4_maxwrite = 4096
@@ -1382,7 +1386,8 @@ class FSLayoutFSObj(FSObject):
         # as it facilitates commits, returns, recalls etc.
         l_offset = 0
         l_len = NFS4_UINT64_MAX
-        l_mode = LAYOUTIOMODE4_RW
+        # use requested iomode
+        l_mode = arg.loga_iomode
         l_type = LAYOUT4_NFSV4_1_FILES
         self.current_layout = (l_type, l_offset, l_len, l_mode)
         return layout4(l_offset, l_len, l_mode,
@@ -1423,7 +1428,7 @@ class FileLayoutFS(FileSystem):
         FileSystem.__init__(self, objclass=FSLayoutFSObj)
         self.fsid = (2, fsid)
         self.fattr4_fs_layout_type = [LAYOUT4_NFSV4_1_FILES]
-        self.fattr4_supported_attrs |= 1 << FATTR4_FS_LAYOUT_TYPE
+        self.fattr4_supported_attrs |= 1 << FATTR4_FS_LAYOUT_TYPES
         self.fattr4_maxwrite = 8192
         self.fattr4_maxread = 8192
         self.fattr4_supported_attrs |= 1 << FATTR4_MAXWRITE

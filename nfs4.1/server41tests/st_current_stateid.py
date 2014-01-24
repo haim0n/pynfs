@@ -2,7 +2,7 @@ from st_create_session import create_session
 from nfs4_const import *
 
 from environment import check, checklist, fail, create_file, open_file, close_file
-from environment import open_create_file_op
+from environment import open_create_file_op, use_obj
 from nfs4_type import open_owner4, openflag4, createhow4, open_claim4
 from nfs4_type import creatverfattr, fattr4, stateid4, locker4, lock_owner4
 from nfs4_type import open_to_lock_owner4
@@ -84,8 +84,8 @@ def testLockWriteLocku(t, env):
     res = sess1.compound([op.putfh(fh)] + lock_ops)
     check(res, NFS4_OK)
 
-def testOpenPutrootfhClose(t, env):
-    """test current state id processing by having OPEN, PUTROOTFH and CLOSE
+def testOpenLookupClose(t, env):
+    """test current state id processing by having OPEN, LOOKUP and CLOSE
        in a single compound
 
     FLAGS: currentstateid all
@@ -93,8 +93,10 @@ def testOpenPutrootfhClose(t, env):
     """
     sess1 = env.c1.new_client_session(env.testname(t))
 
-    open_op = open_create_file_op(sess1, env.testname(t), open_create=OPEN4_CREATE)
-    res = sess1.compound(open_op + [op.putrootfh(), op.close(0, current_stateid)])
+    fname = env.testname(t)
+    open_op = open_create_file_op(sess1, fname, open_create=OPEN4_CREATE)
+    lookup_op = env.home + [op.lookup(fname)]
+    res = sess1.compound(open_op + lookup_op + [op.close(0, current_stateid)])
     checklist(res, [NFS4ERR_STALE_STATEID, NFS4ERR_BAD_STATEID])
 
 def testCloseNoStateid(t, env):
@@ -118,7 +120,7 @@ def testOpenLayoutGet(t, env):
     """test current state id processing by having OPEN and LAYOUTGET
        in a single compound
 
-    FLAGS: currentstateid all
+    FLAGS: currentstateid pnfs
     CODE: CSID7
     """
     sess = env.c1.new_client_session(env.testname(t),
@@ -130,3 +132,49 @@ def testOpenLayoutGet(t, env):
                         0, 8192, 8192, current_stateid, 0xffff)])
     check(res, NFS4_OK)
 
+def testOpenSetattr(t, env):
+    """test current state id processing by having OPEN and SETATTR
+       in a single compound
+
+    FLAGS: currentstateid all
+    CODE: CSID8
+    """
+    size = 8
+    sess = env.c1.new_client_session(env.testname(t),
+                                        flags=EXCHGID4_FLAG_USE_PNFS_MDS)
+
+    open_op = open_create_file_op(sess, env.testname(t), open_create=OPEN4_CREATE)
+    res = sess.compound( open_op +
+           [ op.setattr(current_stateid, {FATTR4_SIZE: size})])
+    check(res, NFS4_OK)
+
+def testOpenFreestateidClose(t, env):
+    """test current state id processing by having OPEN, FREE_STATEID and CLOSE
+       in a single compound
+
+    FLAGS: currentstateid all
+    CODE: CSID9
+    """
+    sess1 = env.c1.new_client_session(env.testname(t))
+
+    open_op = open_create_file_op(sess1, env.testname(t), open_create=OPEN4_CREATE)
+    res = sess1.compound(open_op + [op.free_stateid(current_stateid), op.close(0, current_stateid)])
+    check(res, NFS4ERR_LOCKS_HELD)
+
+def testOpenSaveFHLookupRestoreFHClose(t, env):
+    """test current state id processing by having OPEN, SAVEFH, LOOKUP, RESTOREFH and CLOSE
+       in a single compound
+
+    FLAGS: currentstateid all
+    CODE: CSID10
+    """
+    sess1 = env.c1.new_client_session(env.testname(t))
+
+    fname = env.testname(t)
+    open_op = open_create_file_op(sess1, fname, open_create=OPEN4_CREATE)
+    lookup_op = env.home
+    res = sess1.compound(lookup_op + [op.getfh()])
+    check(res)
+    fh = res.resarray[-1].object
+    res = sess1.compound(open_op + [op.savefh(), op.putfh(fh), op.restorefh(), op.close(0, current_stateid)])
+    check(res)

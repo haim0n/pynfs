@@ -1,5 +1,7 @@
 from nfs4_const import *
-from environment import check, checklist, compareTimes, makeBadID, makeStaleId
+from nfs4_type import *
+from environment import check, checklist, compareTimes, makeBadID, makeBadIDganesha, makeStaleId
+import struct
 
 _text = 'write data' # len=10
 
@@ -273,17 +275,20 @@ def testShareDeny(t, env):
     res = c.write_file(fh, _text)
     check(res, NFS4ERR_LOCKED, "WRITE to file with DENY set")
     
-def testBadStateid(t, env):
+# WRT10 requires a server specific manipulation of the stateid
+#       each server will have it's own implementation, there is
+#       no general version.
+def testBadStateidGanesha(t, env):
     """WRITE with bad stateid should return NFS4ERR_BAD_STATEID
 
-    FLAGS: write badid all
+    FLAGS: ganesha
     DEPEND: MKFILE
-    CODE: WRT10
+    CODE: WRT10g
     """
     c = env.c1
     c.init_connection()
     fh, stateid = c.create_confirm(t.code)
-    res = c.write_file(fh, _text, 0, makeBadID(stateid))
+    res = c.write_file(fh, _text, 0, makeBadIDganesha(stateid))
     check(res, NFS4ERR_BAD_STATEID, "WRITE with bad stateid")
     
 def testStaleStateid(t, env):
@@ -314,3 +319,68 @@ def testOldStateid(t, env):
     fh, stateid = c.confirm(t.code, res)
     res = c.write_file(fh, _text, 0, oldstateid)
     check(res, NFS4ERR_OLD_STATEID, "WRITE with old stateid")
+
+def testDoubleWrite(t, env):
+    """Two WRITEs in a compound
+
+    FLAGS: write all
+    DEPEND: MKFILE
+    CODE: WRT13
+    """
+    c = env.c1
+    c.init_connection()
+    fh, stateid = c.create_confirm(t.code, deny=OPEN4_SHARE_DENY_NONE)
+    ops = c.use_obj(fh)
+    ops += [c.write_op(stateid4(0, ''), 0, UNSTABLE4, 'one')]
+    ops += [c.write_op(stateid4(0, ''), 3, UNSTABLE4, 'two')]
+    res = c.compound(ops)
+    res = c.read_file(fh, 0, 6)
+    _compare(t, res, 'onetwo', True)
+
+def _get_iosize(t, c, path):
+    d = c.do_getattrdict(path, [FATTR4_MAXREAD, FATTR4_MAXWRITE])
+    # I can't find any official minimums, so these are arbitrary:
+    if FATTR4_MAXREAD not in d:
+        d[FATTR4_MAXREAD] = 128
+    if FATTR4_MAXWRITE not in d:
+        d[FATTR4_MAXWRITE] = 128
+    return d[FATTR4_MAXREAD], d[FATTR4_MAXWRITE]
+
+def testLargeWrite(t, env):
+    """large WRITE
+
+    FLAGS: write all
+    DEPEND: MKFILE
+    CODE: WRT14
+    """
+    c = env.c1
+    c.init_connection()
+    fh, stateid = c.create_confirm(t.code, deny=OPEN4_SHARE_DENY_NONE)
+    maxread, maxwrite = _get_iosize(t, c, c.homedir)
+    res = c.write_file(fh, 'A'*maxwrite, how=UNSTABLE4)
+    check(res, msg="WRITE with stateid=zeros and UNSTABLE4")
+
+def testSizes(t, env):
+    """bunch of various-sized writes
+
+    FLAGS: write all
+    DEPEND: MKFILE
+    CODE: WRT15
+    """
+
+    min = 0;
+    max = 8192;
+    buf = ""
+    # I've found it helpful when tracking down decoding errors to know
+    # where in the packet a given word or data came from; this helps:
+    for i in range(0, (max+3)/4):
+        buf += struct.pack('>L', i);
+    c = env.c1
+    c.init_connection()
+    fh, stateid = c.create_confirm(t.code, deny=OPEN4_SHARE_DENY_NONE)
+    for i in range(0, max):
+        ops = c.use_obj(fh)
+        ops += [c.write_op(stateid4(0, ''), 0, UNSTABLE4, buf[0:i])]
+        ops += [c.getattr([FATTR4_SIZE]), c.getattr([FATTR4_SIZE])]
+        res = c.compound(ops)
+        check(res, msg="length %d WRITE" % i)

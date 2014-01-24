@@ -39,7 +39,7 @@ def testGoodTag(t, env):
 def testBadTags(t, env):
     """COMPOUND with invalid utf8 tags
 
-    FLAGS: compound utf8 all
+    FLAGS: compound utf8
     CODE: COMP3
     """
     c = env.c1
@@ -64,7 +64,7 @@ def testInvalidMinor(t, env):
 def testInvalidMinor2(t, env):
     """COMPOUND with invalid minor version returns NFS4ERR_MINOR_VERS_MISMATCH
 
-    even if using illegal opcode
+    even if using illegal opcode (rfc 5661 p. 399)
 
     FLAGS: compound all
     CODE: COMP4b

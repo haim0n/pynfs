@@ -1,6 +1,6 @@
 from nfs4_const import *
 from nfs4_type import stateid4
-from environment import check, checklist, get_invalid_clientid, makeStaleId
+from environment import check, checklist, get_invalid_clientid, makeStaleId, makeBadIDganesha
 import time
 
 def testFile(t, env):
@@ -237,7 +237,7 @@ def testBadOpenSeqid(t, env):
 def testNonzeroLockSeqid(t, env):
     """LOCK with newlockowner should set lockid to 0
 
-    FLAGS: lock seqid all
+    FLAGS:
     DEPEND: MKFILE
     CODE: LOCK8c
     """
@@ -341,6 +341,19 @@ def testBadStateid(t, env):
     c.init_connection()
     fh, stateid = c.create_confirm(t.code)
     res = c.lock_file(t.code, fh, stateid4(0, ''))
+    check(res, NFS4ERR_BAD_STATEID, "LOCK with a bad stateid")
+
+def testBadStateidganesha(t, env):
+    """LOCK should return NFS4ERR_BAD_STATEID if use a bad id
+
+    FLAGS: ganesha
+    DEPEND: MKFILE
+    CODE: LOCK11g
+    """
+    c = env.c1
+    c.init_connection()
+    fh, stateid = c.create_confirm(t.code)
+    res = c.lock_file(t.code, fh, makeBadIDganesha(stateid))
     check(res, NFS4ERR_BAD_STATEID, "LOCK with a bad stateid")
 
 def testStaleLockStateid(t, env):
@@ -538,7 +551,7 @@ def testReadLocks2(t, env):
 def testFairness(t, env):
     """MULTIPLE blocking locks may or may not be fair
 
-    FLAGS: lock all
+    FLAGS: fairlocks
     DEPEND: MKFILE
     CODE: LOCK18
     """
@@ -577,7 +590,7 @@ def testFairness(t, env):
 def testBlockPoll(t, env):
     """Can we handle blocking lock polling
 
-    FLAGS: lock timed all
+    FLAGS: fairlocks
     DEPEND: MKFILE
     CODE: LOCK19
     """
@@ -664,7 +677,7 @@ def testBlockTimeout(t, env):
 def testBlockingQueue(t, env):
     """MULTIPLE blocking locks queued up
 
-    FLAGS: lock all
+    FLAGS: fairlocks
     DEPEND: MKFILE
     CODE: LOCK21
     """
@@ -721,7 +734,7 @@ def testBlockingQueue(t, env):
 def testLongPoll(t, env):
     """Check queue not prematurely reaped
 
-    FLAGS: lock timed all citi
+    FLAGS: fairlocks
     DEPEND: MKFILE
     CODE: LOCK22
     """
@@ -779,15 +792,16 @@ def testLongPoll(t, env):
 ####################################
         
 # FRED - why again is this impossible?
-def xxtestLockowner2(t, env):
+def testLockowner2(t, env):
     """LOCK owner should not work if reused with 2nd file
 
     Lockowner is uniquely identified by clientid and an owner string.
     Each lockowner must have its own seqid.  Thus 2 file
     
-    FLAGS: lock all
+#    FLAGS: lock all
+    FLAGS: 
     DEPEND: MKFILE MKDIR
-    CODE: LOCK13
+    CODE: LOCK13a
     """
 
 

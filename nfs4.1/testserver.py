@@ -55,46 +55,13 @@ else:
 
 def scan_options(p):
     """Parse command line options
-
-    Sets the following:
-    .showflags = (False)
-    .showcodes = (False)
-    .noinit    = (False)
-    .nocleanup = (False)
-    .outfile   = (None)
-    .xmlout    = (None)
-    .debug_fail = (False)
-    
-    .security = (sys)
-    .uid = (UID)
-    .gid = (GID)
-    .machinename = (HOST)
-
-    .force   = (False)
-    .rundeps = (False)
-    
-    .verbose  = (False)
-    .showpass = (True)
-    .showwarn = (True)
-    .showfail = (True)
-    .showomit = (False)
-    .showtraffic = (False)
-
-    .maketree  = (False)
-    .uselink   = (None)
-    .useblock  = (None)
-    .usechar   = (None)
-    .usesocket = (None)
-    .usefifo   = (None)
-    .usefile   = (None)
-    .usedir    = (None)
-    .usespecial= (None)
-    
     """
     p.add_option("--showflags", action="store_true", default=False,
                  help="Print a list of all possible flags and exit")
     p.add_option("--showcodes", action="store_true", default=False,
                  help="Print a list of all test codes and exit")
+    p.add_option("--showcodesflags", action="store_true", default=False,
+                 help="Print a list of all test codes with their flags and exit")
     p.add_option("--noinit", action="store_true", default=False,
                  help="Skip initial cleanup of test directory")
     p.add_option("--nocleanup", action="store_true", default=False,
@@ -105,6 +72,8 @@ def scan_options(p):
                  help="Store test results in xml format [%default]")
     p.add_option("--debug_fail", action="store_true", default=False,
                  help="Force some checks to fail")
+    p.add_option("--minorversion", type="int", default=1,
+                 metavar="MINORVERSION", help="Choose NFSv4 minor version")
 
     g = OptionGroup(p, "Security flavor options",
                     "These options choose or affect the security flavor used.")
@@ -182,23 +151,18 @@ def scan_options(p):
                  help="Use FH for certain specialized tests")
     p.add_option_group(g)
 
-##     g = OptionGroup(p, "Server workaround options",
-##                     "Certain servers handle certain things in unexpected ways."
-##                     " These options allow you to alter test behavior so that "
-##                     "they will run.")
-##     g.add_option("--paddednull", action="store_true", default=False,
-##                  help="Allow NULL returns to have extra data appended [False]")
-##     g.add_option("--newverf", action="store_true", default=False,
-##                  help="Force use of new verifier for SETCLIENTID [False]")
-##     g.add_option("--secure", action="store_true", default=False,
-##                  help="Try to use 'secure' port number <1024 for client [False]")
-##     p.add_option_group(g)
+    g = OptionGroup(p, "Server reboot script options",
+                    "When running reboot scripts, these options determine "
+                    "the scripts and arguments used to control how the "
+                    "server is restarted.")
 
-    g.add_option("--rebootscript", default=None, metavar="FILE",
-                 help="Use FILE as the script to reboot SERVER.")
+    g.add_option("--serverhelper", default=None, metavar="FILE",
+                 help="Use script to perform special actions on server")
 
-    g.add_option("--rebootargs", default=None, metavar="ARGS",
-                 help="Pass ARGS as a string to the reboot script.")
+    g.add_option("--serverhelperarg", default=None, metavar="ARG",
+                 help="Pass ARG as first argument to serverhelper");
+
+    p.add_option_group(g)
 
     return p.parse_args()
 
@@ -264,6 +228,13 @@ def main():
         codes.sort()
         for c in codes:
             print c
+        sys.exit(0)
+
+    if opt.showcodesflags:
+        codes = cdict.keys()
+        codes.sort()
+        for c in codes:
+            print c, "FLAGS:", ', '.join(cdict[c].flags_list)
         sys.exit(0)
 
     # Grab server info and set defaults

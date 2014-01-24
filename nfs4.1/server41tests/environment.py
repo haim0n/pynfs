@@ -14,9 +14,10 @@ from nfs4_const import *
 from nfs4_type import *
 import rpc
 import nfs4client
+import sys
 import os
 import nfs4lib
-from nfs4lib import use_obj
+from nfs4lib import use_obj, UnexpectedCompoundRes
 import logging
 import struct
 from rpc.security import AuthSys, AuthGss
@@ -112,7 +113,7 @@ class Environment(testmod.Environment):
     def __init__(self, opts):
         self._lock = Lock()
         self.opts = opts
-        self.c1 = nfs4client.NFS4Client(opts.server, opts.port)
+        self.c1 = nfs4client.NFS4Client(opts.server, opts.port, opts.minorversion)
         s1 = rpc.security.instance(opts.flavor)
         if opts.flavor == rpc.AUTH_NONE:
             self.cred1 = s1.init_cred()
@@ -190,7 +191,6 @@ class Environment(testmod.Environment):
                 log.warning("could not create /%s" % '/'.join(path))
         # Make file-object in /tree
         fh, stateid = create_confirm(sess, 'maketree', tree + ['file'])
-        stateid.seqid = 0
         ops = [op.putfh(fh),
                op.write(stateid, 0, FILE_SYNC4, self.filedata)]
         res = sess.compound(ops)
@@ -200,7 +200,11 @@ class Environment(testmod.Environment):
             
     def finish(self):
         """Run once after all tests are run"""
-        pass
+        if self.opts.nocleanup:
+            return
+        sess = self.c1.new_client_session("Environment.init_%i" % self.timestamp)
+        clean_dir(sess, self.opts.home)
+        sess.c.null()
 
     def startUp(self):
         """Run before each test"""
@@ -213,6 +217,21 @@ class Environment(testmod.Environment):
         log.info("Sleeping for %i seconds: %s" % (sec, msg))
         time.sleep(sec)
         log.info("Woke up")
+
+    def serverhelper(self, args):
+        """Perform a special operation on the server side (such as
+        rebooting the server)"""
+        if self.opts.serverhelper is None:
+            print "Manual operation required on server:"
+            print args + " and hit ENTER when done"
+            sys.stdin.readline()
+            print "Continuing with test"
+        else:
+            cmd = self.opts.serverhelper
+            if self.opts.serverhelperarg:
+                cmd += ' ' + self.opts.serverhelperarg
+            cmd += ' ' + args
+            os.system(cmd);
 
     def new_verifier(self):
         """Returns a never before used verifier"""
@@ -453,7 +472,7 @@ def open_create_file(sess, owner, path=None, attrs={FATTR4_MODE: 0644},
 		     deleg_type=None,
 		     open_create=OPEN4_NOCREATE,
 		     seqid=0, clientid=0):
-    open_op = open_create_file_op (sess, owner, path, attrs, access, deny, mode,
+    open_op = open_create_file_op(sess, owner, path, attrs, access, deny, mode,
                             verifier, claim_type, want_deleg, deleg_type,
                             open_create, seqid, clientid)
 
@@ -550,6 +569,18 @@ def create_confirm(sess, owner, path=None, attrs={FATTR4_MODE: 0644},
     return fh, res.resarray[-2].stateid
     return fh, openstateid
 
+def create_close(sess, owner, path=None, attrs={FATTR4_MODE: 0644},
+                   access=OPEN4_SHARE_ACCESS_BOTH,
+                   deny=OPEN4_SHARE_DENY_NONE,
+                   mode=GUARDED4):
+    """Create (using open) a regular file, confirm the open, and close
+
+    Returns the fhandle
+    """
+    fh, stateid = create_confirm(sess, owner, path, attrs, access, deny, mode)
+    close_file(sess, fh, stateid=stateid)
+    return fh;
+
 def _getname(owner, path):
     if path is None:
         return owner
@@ -580,7 +611,7 @@ def maketree(sess, tree, root=None, owner=None):
             check(res)
             maketree(sess, obj[1:], root + [obj[0]], owner)
         else:
-            create_confirm(sess, owner, root + [obj])
+            create_close(sess, owner, root + [obj])
 
 def lookup_obj(sess, path):
     compound = [op.putrootfh()]

@@ -98,7 +98,8 @@ def testNoSfh(t, env):
     CODE: LINK2
     """
     c = env.c1
-    ops = [c.putrootfh_op(), c.link_op(t.code)]
+    ops = c.go_home()
+    ops += [c.link_op(t.code)]
     res = c.compound(ops)
     check(res, NFS4ERR_NOFILEHANDLE, "LINK with no <sfh>")
 
@@ -142,7 +143,8 @@ def testCfhLink(t, env):
     CODE: LINK4a
     """
     res = env.c1.link(env.opts.usefile, env.opts.uselink + [t.code])
-    check(res, NFS4ERR_NOTDIR, "LINK with <cfh> not a directory")
+    checklist(res, [NFS4ERR_NOTDIR, NFS4ERR_SYMLINK],
+                "LINK with <cfh> not a directory")
 
 def testCfhBlock(t, env):
     """LINK should fail with NFS4ERR_NOTDIR if cfh is not dir
@@ -212,7 +214,7 @@ def testLongName(t, env):
 def testInvalidUtf8(t, env):
     """LINK with bad UTF-8 name strings should return NFS4ERR_INVAL
 
-    FLAGS: link utf8 all
+    FLAGS: link utf8
     DEPEND: LINKS LOOKFILE MKDIR
     CODE: LINK8
     """

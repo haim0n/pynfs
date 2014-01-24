@@ -247,7 +247,7 @@ def testNotDir(t, env):
 def testInvalidUtf8(t, env):
     """OPEN with bad UTF-8 name strings should return NFS4ERR_INVAL
 
-    FLAGS: open utf8 all
+    FLAGS: open utf8
     DEPEND: MKDIR
     CODE: OPEN13
     """
@@ -310,13 +310,13 @@ def testClaimPrev(t, env):
     c.init_connection()
     fh, stateid = c.create_confirm(t.code)
     res = c.open_file(t.code, fh, claim_type=CLAIM_PREVIOUS, deleg_type=OPEN_DELEGATE_NONE)
-    check(res, NFS4ERR_RECLAIM_BAD, "Trying to OPEN with CLAIM_PREVIOUS",
-          [NFS4ERR_NO_GRACE])
+    checklist(res, [NFS4ERR_RECLAIM_BAD, NFS4ERR_NO_GRACE],
+            "Trying to OPEN with CLAIM_PREVIOUS")
 
 def testModeChange(t, env):
     """OPEN conflicting with mode bits
 
-    FLAGS: open all
+    FLAGS: open all mode000
     DEPEND: MODE MKFILE
     CODE: OPEN17
     """
@@ -330,7 +330,10 @@ def testModeChange(t, env):
     check(res, msg="Setting mode of file %s to 000" % t.code)
     res = c.open_file(t.code, access=OPEN4_SHARE_ACCESS_BOTH,
                       deny=OPEN4_SHARE_DENY_NONE)
-    check(res, NFS4ERR_ACCESS, "Opening file %s with mode=000" % t.code)
+    if env.opts.uid == 0:
+	    checklist(res, [NFS4_OK, NFS4ERR_ACCESS], "Opening file %s with mode=000" % t.code)
+    else:
+	    check(res, NFS4ERR_ACCESS, "Opening file %s with mode=000" % t.code)
 
 def testShareConflict1(t, env):
     """OPEN conflicting with previous share

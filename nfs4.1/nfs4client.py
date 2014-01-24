@@ -28,13 +28,13 @@ log_cb.setLevel(logging.DEBUG)
 
 SHOW_TRAFFIC = True # Debugging aid, prints out client traffic
 class NFS4Client(rpc.Client, rpc.Server):
-    def __init__(self, host='localhost', port=2049, ctrl_proc=16):
+    def __init__(self, host='localhost', port=2049, minorversion=1, ctrl_proc=16):
         rpc.Client.__init__(self, 100003, 4)
         self.prog = 0x40000000
         self.versions = [1] # List of supported versions of prog
 
-        self.minorversion = 1
-        self.minor_versions = [1]
+        self.minorversion = minorversion
+        self.minor_versions = [minorversion]
         self.tag = "default tag"
         self.impl_id = nfs_impl_id4("citi.umich.edu", "pynfs X.X",
                                     nfs4lib.get_nfstime())
@@ -263,7 +263,7 @@ class NFS4Client(rpc.Client, rpc.Server):
         # AT this point we are not allowed to return an error
         env.caching = arg.csa_cachethis
         env.session = session
-        res = CB_SEQUENCE4resok(session.sessionid, inc_u32(slot.seqid),
+        res = CB_SEQUENCE4resok(session.sessionid, slot.seqid,
                                 arg.csa_slotid,
                                 channel.maxrequests, channel.maxrequests)# STUB
         res = self.posthook(arg, env, res)
@@ -292,9 +292,9 @@ class NFS4Client(rpc.Client, rpc.Server):
         else:
             return None
 
-    def new_client_session(self, name, flags=0):
+    def new_client_session(self, name, flags=0, sec=None):
         c = self.new_client(name, flags=flags)
-        s = c.create_session()
+        s = c.create_session(sec=sec)
         s.compound([op.reclaim_complete(FALSE)])
         return s
 
@@ -340,11 +340,11 @@ class ClientRecord(object):
                  for handle in handles]
         self.ssv_creds.extend(creds)
 
-    def create_session(self,
+    def _create_session(self,
                        flags=CREATE_SESSION4_FLAG_CONN_BACK_CHAN,
-                       fore_attrs=None, back_attrs=None, sec=None, prog=None):
-        max_retries = 10
-        delay_time = 1
+                       fore_attrs=None, back_attrs=None, sec=None,
+                       prog=None,
+                       max_retries=1, delay_time=1):
         chan_attrs = channel_attrs4(0,8192,8192,8192,128,8,[])
         if fore_attrs is None:
             fore_attrs = chan_attrs
@@ -363,6 +363,14 @@ class ClientRecord(object):
             if res.status != NFS4ERR_DELAY:
                 break
             time.sleep(delay_time)
+        return res;
+
+    def create_session(self,
+                       flags=CREATE_SESSION4_FLAG_CONN_BACK_CHAN,
+                       fore_attrs=None, back_attrs=None, sec=None, prog=None):
+        res = self._create_session(flags=flags,
+                        fore_attrs=fore_attrs, back_attrs=back_attrs,
+                        sec=sec, prog=prog, max_retries=10);
         nfs4lib.check(res)
         return self._add_session(res.resarray[0])
 

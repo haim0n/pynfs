@@ -54,7 +54,8 @@ def testLink(t, env):
     c = env.c1
     ops = c.use_obj(env.opts.uselink) + [c.lookupp_op()]
     res = c.compound(ops)
-    check(res, NFS4ERR_NOTDIR, "LOOKUPP with non-dir <cfh>")
+    checklist(res, [NFS4ERR_NOTDIR, NFS4ERR_SYMLINK],
+                "LOOKUPP with non-dir <cfh>")
     
 def testBlock(t, env):
     """LOOKUPP with non-dir (cfh)
@@ -129,4 +130,21 @@ def testXdev(t, env):
     if fh1 != fh2:
         t.fail("file handles not equal")
 
-    
+def testXdevHome(t, env):
+    """LOOKUPP with dir on different fs
+
+    FLAGS: special
+    DEPEND: 
+    CODE: LOOKP6
+    """
+    c = env.c1
+    ops = [c.putrootfh_op(), c.getfh_op()]
+    ops += c.lookup_path(c.homedir)
+    ops += c.lookupp_path(c.homedir)
+    ops += [c.getfh_op()]
+    res = c.compound(ops)
+    check(res)
+    fh1 = res.resarray[1].switch.switch.object
+    fh2 = res.resarray[-1].switch.switch.object
+    if fh1 != fh2:
+        t.fail("file handles not equal")

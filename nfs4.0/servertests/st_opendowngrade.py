@@ -118,106 +118,33 @@ def testNoFh(t, env):
     res = c.downgrade_file(t.code, None, stateid)
     check(res, NFS4ERR_NOFILEHANDLE, "OPENDOWNGRADE with no <cfh>")
 
-def testDir(t, env):
-    """OPENDOWNGRADE using dir
-
-    FLAGS: opendowngrade dir all
-    DEPEND: MKFILE LOOKDIR
-    CODE: OPDG9d
-    """
-    c = env.c1
-    c.init_connection()
-    fh, stateid = c.create_confirm(t.code)
-    res = c.downgrade_file(t.code, env.opts.usedir, stateid)
-    check(res, NFS4ERR_INVAL, "OPENDOWNGRADE with nonfile object",
-          [NFS4ERR_BAD_STATEID])
-    
-def testLink(t, env):
-    """OPENDOWNGRADE using non-file object
-
-    FLAGS: opendowngrade symlink all
-    DEPEND: MKFILE LOOKLINK
-    CODE: OPDG9a
-    """
-    c = env.c1
-    c.init_connection()
-    fh, stateid = c.create_confirm(t.code)
-    res = c.downgrade_file(t.code, env.opts.uselink, stateid)
-    check(res, NFS4ERR_INVAL, "OPENDOWNGRADE with nonfile object",
-          [NFS4ERR_BAD_STATEID])
-    
-def testBlock(t, env):
-    """OPENDOWNGRADE using non-file object
-
-    FLAGS: opendowngrade block all
-    DEPEND: MKFILE LOOKBLK
-    CODE: OPDG9b
-    """
-    c = env.c1
-    c.init_connection()
-    fh, stateid = c.create_confirm(t.code)
-    res = c.downgrade_file(t.code, env.opts.useblock, stateid)
-    check(res, NFS4ERR_INVAL, "OPENDOWNGRADE with nonfile object",
-          [NFS4ERR_BAD_STATEID])
-    
-def testChar(t, env):
-    """OPENDOWNGRADE using non-file object
-
-    FLAGS: opendowngrade char all
-    DEPEND: MKFILE LOOKCHAR
-    CODE: OPDG9c
-    """
-    c = env.c1
-    c.init_connection()
-    fh, stateid = c.create_confirm(t.code)
-    res = c.downgrade_file(t.code, env.opts.usechar, stateid)
-    check(res, NFS4ERR_INVAL, "OPENDOWNGRADE with nonfile object",
-          [NFS4ERR_BAD_STATEID])
-    
-def testFifo(t, env):
-    """OPENDOWNGRADE using non-file object
-
-    FLAGS: opendowngrade fifo all
-    DEPEND: MKFILE LOOKFIFO
-    CODE: OPDG9f
-    """
-    c = env.c1
-    c.init_connection()
-    fh, stateid = c.create_confirm(t.code)
-    res = c.downgrade_file(t.code, env.opts.usefifo, stateid)
-    check(res, NFS4ERR_INVAL, "OPENDOWNGRADE with nonfile object",
-          [NFS4ERR_BAD_STATEID])
-    
-def testSocket(t, env):
-    """OPENDOWNGRADE using non-file object
-
-    FLAGS: opendowngrade socket all
-    DEPEND: MKFILE LOOKSOCK
-    CODE: OPDG9s
-    """
-    c = env.c1
-    c.init_connection()
-    fh, stateid = c.create_confirm(t.code)
-    res = c.downgrade_file(t.code, env.opts.usesocket, stateid)
-    check(res, NFS4ERR_INVAL, "OPENDOWNGRADE with nonfile object",
-          [NFS4ERR_BAD_STATEID])
+# NOTE: retired test codes, please do not reuse:
+# OPDG9a
+# OPDG9b
+# OPDG9c
+# OPDG9d
+# OPDG9f
+# OPDG9s
 
 class open_sequence:
     def __init__(self, client, owner):
-	self.client = client
+        self.client = client
         self.owner = owner
     def open(self, access):
-	self.fh, self.stateid = self.client.create_confirm(self.owner,
+        self.fh, self.stateid = self.client.create_confirm(self.owner,
 						access=access,
 						deny=OPEN4_SHARE_DENY_NONE,
 						mode=UNCHECKED4)
     def downgrade(self, access):
-	res = self.client.downgrade_file(self.owner, self.fh, self.stateid,
+	    res = self.client.downgrade_file(self.owner, self.fh, self.stateid,
 					access=access,
 					deny=OPEN4_SHARE_DENY_NONE)
-	self.stateid = res.stateid
+	    self.stateid = res.stateid
     def close(self):
-	self.client.close_file(self.owner, self.fh, self.stateid)
+        self.client.close_file(self.owner, self.fh, self.stateid)
+    def lock(self, type):
+        self.client.lock_file(self.owner, self.fh, self.stateid,
+                    type=type)
 	
 
 def testOpenDowngradeSequence(t, env):
@@ -238,4 +165,19 @@ def testOpenDowngradeSequence(t, env):
     os.open(     OPEN4_SHARE_ACCESS_WRITE)
     os.downgrade(OPEN4_SHARE_ACCESS_WRITE)
     os.open(     OPEN4_SHARE_ACCESS_READ)
+    os.close()
+
+def testOpenDowngradeLock(t, env):
+    """Try open, lock, open, downgrade, close
+
+    FLAGS: opendowngrade all lock
+    CODE: OPDG11
+    """
+    c= env.c1
+    c.init_connection()
+    os = open_sequence(c, t.code)
+    os.open(OPEN4_SHARE_ACCESS_BOTH)
+    os.lock(READ_LT)
+    os.open(OPEN4_SHARE_ACCESS_READ)
+    os.downgrade(OPEN4_SHARE_ACCESS_READ)
     os.close()
