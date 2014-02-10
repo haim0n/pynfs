@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from distutils.core import setup, Extension
+from setuptools import setup, Extension
 
 DESCRIPTION = """
 gssapi
@@ -37,7 +37,7 @@ _gssapi = Extension(name = "_gssapi",
 
 
 setup(name = "gssapi",
-      version = "0.0.0", # import this?
+      version = "0.1.0",
       py_modules = ["gssapi"],
       ext_modules = [_gssapi],
       description = "Python wrapping (via SWIG) of the C gssapi library",

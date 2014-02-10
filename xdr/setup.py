@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from distutils.core import setup
+from setuptools import setup
 
 DESCRIPTION = """
 xdrgen
@@ -11,7 +12,7 @@ Add stuff here.
 
 
 setup(name = "xdrgen",
-      version = "0.0.0", # import this?
+      version = "0.1.0",
       py_modules = ["xdrgen"], 
       scripts = ["xdrgen.py"], # FIXME - make small script that calls module
       description = "Generate python code from .x files",
@@ -24,7 +25,7 @@ setup(name = "xdrgen",
       maintainer = "Fred Isaman",
       maintainer_email = "iisaman@citi.umich.edu",
       url = "http://www.citi.umich.edu/projects/nfsv4/pynfs/",
-      license = "GPL"
-      
+      license = "GPL",
+      install_requires=['setuptools', 'ply'],
       )
 

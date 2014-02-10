@@ -1,4 +1,5 @@
-from distutils.core import setup
+
+from setuptools import setup
 
 setup(name = "ply",
             description="Python Lex & Yacc",
@@ -24,4 +25,5 @@ PLY is extremely easy to use and provides very extensive error checking.
             maintainer_email = "dave@dabeaz.com",
             url = "http://www.dabeaz.com/ply/",
             packages = ['ply'],
+            install_requires=['setuptools'],
             )

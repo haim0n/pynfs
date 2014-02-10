@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+from setuptools import setup
 
 import sys
 import os
@@ -31,7 +31,7 @@ def setup(*args, **kwargs):
     os.chdir(cwd)
 
 setup(name = "pynfs",
-      version = "0.0.0", # import this?
+      version = "0.1.0",
       packages = ["nfs4", "rpc", "xdr", "ply", "gssapi"], 
       description = "NFS tools, tests, and support libraries",
       long_description = DESCRIPTION,
@@ -42,7 +42,7 @@ setup(name = "pynfs",
       maintainer = "Fred Isaman",
       maintainer_email = "iisaman@citi.umich.edu",
       url = "http://www.citi.umich.edu/projects/nfsv4/pynfs/",
-      license = "GPL"
-      
+      license = "GPL",
+      install_requires=['setuptools'],
       )
 

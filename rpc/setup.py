@@ -1,5 +1,5 @@
 
-from distutils.core import setup
+from setuptools import setup
 
 DESCRIPTION = """
 rpc
@@ -44,7 +44,7 @@ class build_py(_build_py):
             os.chdir(cwd)
 
 setup(name = "rpc",
-      version = "0.0.0", # import this?
+      version = "0.1.0",
       package_dir = {"rpc" : ""},
       packages = ["rpc"], 
       description = "GSS enabled RPC client and server",
@@ -57,7 +57,8 @@ setup(name = "rpc",
       maintainer = "Fred Isaman",
       maintainer_email = "iisaman@citi.umich.edu",
       url = "http://www.citi.umich.edu/projects/nfsv4/pynfs/",
-      license = "GPL"
+      license = "GPL",
+      install_requires=['setuptools', 'gssapi'],
       
       )
 

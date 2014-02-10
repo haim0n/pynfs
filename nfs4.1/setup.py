@@ -1,5 +1,5 @@
 
-from distutils.core import setup
+from setuptools import setup
 
 DESCRIPTION = """
 nfs4
@@ -48,8 +48,8 @@ class build_py(_build_py):
         finally:
             os.chdir(cwd)
 
-setup(name = "nfs4",
-      version = "0.0.0", # import this?
+setup(name = "nfs4.1",
+      version = "0.1.0",
       package_dir = {"nfs4" : ""},
       packages = ["nfs4", "nfs4.server41tests"], 
       description = "NFS version 4.1 tools and tests",
@@ -62,7 +62,8 @@ setup(name = "nfs4",
       maintainer = "Fred Isaman",
       maintainer_email = "iisaman@citi.umich.edu",
       url = "http://www.citi.umich.edu/projects/nfsv4/pynfs/",
-      license = "GPL"
+      license = "GPL",
+      install_requires=['setuptools', 'rpc'],
       
       )
 

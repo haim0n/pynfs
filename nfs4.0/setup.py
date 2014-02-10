@@ -6,8 +6,8 @@ a NFS4 library and a server test application.
 """
 
 import sys
-from distutils.core import setup, Extension
 from distutils.dep_util import newer_group
+from setuptools import setup, Extension
 import os
 import glob
 
@@ -80,9 +80,8 @@ else:
                        library_dirs = ['/usr/kerberos/lib'],
                        sources = ['lib/rpc/rpcsec/gssapi_wrap.c'])
 
-from testserver import VERSION
-setup(name = "newpynfs",
-      version = VERSION,
+setup(name = "nfs4.0",
+      version = "0.1.0",
       license = "GPL",
       description = "Python NFS4 tools",
       long_description = DESCRIPTION,
@@ -95,7 +94,8 @@ setup(name = "newpynfs",
       package_dir = {'': 'lib'},
       packages = ['servertests', 'ply', 'rpc', 'rpc.rpcsec'],
       py_modules = ['testmod', 'rpcgen'],
-      scripts = ['testserver.py', 'showresults.py']
+      scripts = ['testserver.py', 'showresults.py'],
+      install_requires=['setuptools', 'rpc'],
       )
 
 PATHHELP = """\
